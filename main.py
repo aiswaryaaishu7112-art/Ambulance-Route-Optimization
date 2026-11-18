@@ -1,3 +1,4 @@
+
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -16,12 +17,17 @@ data = pd.read_csv("data.csv")
 G = nx.Graph()
 
 for _, row in data.iterrows():
+
+    adjusted_time = row["Time"] + row["Traffic_Delay"]
+
     G.add_edge(
         row["From"],
         row["To"],
         distance=row["Distance"],
         time=row["Time"],
-        traffic=row["Traffic"]
+        traffic=row["Traffic"],
+        traffic_delay=row["Traffic_Delay"],
+        adjusted_time=adjusted_time
     )
 
 # ---------------------------------------------------------
@@ -44,7 +50,7 @@ locations = {
 }
 
 if choice not in locations:
-    print("\nInvalid choice. Please run the program again.")
+    print("\nInvalid choice. Please run again.")
     exit()
 
 start = locations[choice]
@@ -59,13 +65,12 @@ hospitals = [
     "Hospital C"
 ]
 
-print()
-print("=" * 75)
+print("\n" + "=" * 75)
 print(f"Starting Location : {start}")
 print("=" * 75)
 
 # ---------------------------------------------------------
-# 4. FIND SHORTEST ROUTE BY DISTANCE
+# 4. SHORTEST ROUTE BY DISTANCE
 # ---------------------------------------------------------
 
 distance_results = []
@@ -89,29 +94,37 @@ for hospital in hospitals:
         weight="distance"
     )
 
-    travel_time = 0
+    original_time = 0
+    traffic_delay = 0
 
     for i in range(len(route) - 1):
-        travel_time += G[route[i]][route[i + 1]]["time"]
+
+        edge = G[route[i]][route[i + 1]]
+
+        original_time += edge["time"]
+        traffic_delay += edge["traffic_delay"]
+
+    adjusted_time = original_time + traffic_delay
 
     distance_results.append(
-        (hospital, distance, travel_time, route)
+        (hospital, distance, adjusted_time, route)
     )
 
     print(f"\n{hospital}")
-    print(f"Route       : {' -> '.join(route)}")
-    print(f"Distance    : {distance} km")
-    print(f"Travel Time : {travel_time} minutes")
+    print(f"Route              : {' -> '.join(route)}")
+    print(f"Distance           : {distance} km")
+    print(f"Original Time      : {original_time} minutes")
+    print(f"Traffic Delay      : {traffic_delay} minutes")
+    print(f"Adjusted Time      : {adjusted_time} minutes")
 
 # ---------------------------------------------------------
-# 5. FIND FASTEST ROUTE BY TIME
+# 5. FASTEST ROUTE USING TRAFFIC-AWARE TIME
 # ---------------------------------------------------------
 
 time_results = []
 
-print("\n")
-print("=" * 75)
-print("FASTEST ROUTE ANALYSIS")
+print("\n" + "=" * 75)
+print("FASTEST ROUTE ANALYSIS (INCLUDING TRAFFIC)")
 print("=" * 75)
 
 for hospital in hospitals:
@@ -120,32 +133,41 @@ for hospital in hospitals:
         G,
         source=start,
         target=hospital,
-        weight="time"
+        weight="adjusted_time"
     )
 
-    travel_time = nx.shortest_path_length(
+    adjusted_time = nx.shortest_path_length(
         G,
         source=start,
         target=hospital,
-        weight="time"
+        weight="adjusted_time"
     )
 
     distance = 0
+    original_time = 0
+    traffic_delay = 0
 
     for i in range(len(route) - 1):
-        distance += G[route[i]][route[i + 1]]["distance"]
+
+        edge = G[route[i]][route[i + 1]]
+
+        distance += edge["distance"]
+        original_time += edge["time"]
+        traffic_delay += edge["traffic_delay"]
 
     time_results.append(
-        (hospital, distance, travel_time, route)
+        (hospital, distance, adjusted_time, route)
     )
 
     print(f"\n{hospital}")
-    print(f"Route       : {' -> '.join(route)}")
-    print(f"Distance    : {distance} km")
-    print(f"Travel Time : {travel_time} minutes")
+    print(f"Route              : {' -> '.join(route)}")
+    print(f"Distance           : {distance} km")
+    print(f"Original Time      : {original_time} minutes")
+    print(f"Traffic Delay      : {traffic_delay} minutes")
+    print(f"Adjusted Time      : {adjusted_time} minutes")
 
 # ---------------------------------------------------------
-# 6. BEST HOSPITAL BASED ON FASTEST TIME
+# 6. SELECT BEST HOSPITAL
 # ---------------------------------------------------------
 
 best_hospital, best_distance, best_time, best_route = min(
@@ -154,12 +176,11 @@ best_hospital, best_distance, best_time, best_route = min(
 )
 
 # ---------------------------------------------------------
-# 7. FINAL DECISION
+# 7. FINAL OPTIMAL DECISION
 # ---------------------------------------------------------
 
-print()
-print("=" * 75)
-print("                       OPTIMAL DECISION")
+print("\n" + "=" * 75)
+print("                    OPTIMAL DECISION")
 print("=" * 75)
 
 print(f"Best Hospital    : {best_hospital}")
@@ -170,7 +191,7 @@ print(f"Minimum Time     : {best_time} minutes")
 print("=" * 75)
 
 # ---------------------------------------------------------
-# 8. TRAFFIC INFORMATION FOR SELECTED ROUTE
+# 8. TRAFFIC INFORMATION ON OPTIMAL ROUTE
 # ---------------------------------------------------------
 
 print("\nTRAFFIC CONDITIONS ON OPTIMAL ROUTE")
@@ -181,12 +202,16 @@ for i in range(len(best_route) - 1):
     u = best_route[i]
     v = best_route[i + 1]
 
-    traffic = G[u][v]["traffic"]
+    edge = G[u][v]
 
-    print(f"{u} -> {v} : {traffic} traffic")
+    print(f"\n{u} -> {v}")
+    print(f"Traffic Condition : {edge['traffic']}")
+    print(f"Original Time     : {edge['time']} minutes")
+    print(f"Traffic Delay     : {edge['traffic_delay']} minutes")
+    print(f"Adjusted Time     : {edge['adjusted_time']} minutes")
 
 # ---------------------------------------------------------
-# 9. DRAW NETWORK GRAPH
+# 9. DRAW ROAD NETWORK GRAPH
 # ---------------------------------------------------------
 
 plt.figure(figsize=(14, 9))
@@ -203,14 +228,15 @@ nx.draw(
     font_weight="bold"
 )
 
-# Edge labels
+# Display road information
+
 edge_labels = {}
 
 for u, v, attributes in G.edges(data=True):
 
     edge_labels[(u, v)] = (
         f"{attributes['distance']} km\n"
-        f"{attributes['time']} min\n"
+        f"{attributes['adjusted_time']} min\n"
         f"{attributes['traffic']}"
     )
 
@@ -222,6 +248,7 @@ nx.draw_networkx_edge_labels(
 )
 
 # Highlight optimal route
+
 route_edges = list(zip(best_route, best_route[1:]))
 
 nx.draw_networkx_edges(
@@ -233,8 +260,9 @@ nx.draw_networkx_edges(
 )
 
 plt.title(
-    f"Optimal Ambulance Route\n"
-    f"{best_hospital} | {best_distance} km | {best_time} minutes"
+    f"Traffic-Aware Optimal Ambulance Route\n"
+    f"{best_hospital} | {best_distance} km | "
+    f"{best_time} minutes"
 )
 
 plt.show()
